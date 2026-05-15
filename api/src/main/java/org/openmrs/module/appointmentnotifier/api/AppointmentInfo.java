@@ -9,9 +9,13 @@
  */
 package org.openmrs.module.appointmentnotifier.api;
 
-public class AppointmentInfo {
+import org.openmrs.BaseOpenmrsObject;
+
+import java.io.Serializable;
+
+public class AppointmentInfo extends BaseOpenmrsObject implements Serializable {
 	
-	private String uuid;
+	private static final long serialVersionUID = 1L;
 	
 	private String appointmentUuid;
 	
@@ -31,12 +35,13 @@ public class AppointmentInfo {
 	
 	private String email;
 	
-	public String getUuid() {
-		return uuid;
+	@Override
+	public Integer getId() {
+		return null;
 	}
 	
-	public void setUuid(String uuid) {
-		this.uuid = uuid;
+	@Override
+	public void setId(Integer id) {
 	}
 	
 	public String getAppointmentUuid() {

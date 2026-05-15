@@ -38,6 +38,18 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+			<!-- Jackson: OpenMRS 2.5.0 bundles 2.12.x; version pinned for submodule use -->
+			<dependency>
+				<groupId>com.fasterxml.jackson.core</groupId>
+				<artifactId>jackson-databind</artifactId>
+				<version>${jacksonVersion}</version>
+			</dependency>
+			<!-- Spring JDBC: provided by the OpenMRS core Spring runtime -->
+			<dependency>
+				<groupId>org.springframework</groupId>
+				<artifactId>spring-jdbc</artifactId>
+				<version>${springVersion}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
@@ -167,5 +179,11 @@
 		<openmrsPlatformVersion>2.5.0</openmrsPlatformVersion>
 		<appointmentsVersion>2.1.0</appointmentsVersion>
 		<fhir2Version>2.7.0</fhir2Version>
+		<!-- HAPI FHIR version shipped inside fhir2 2.7.x -->
+		<hapiFhirVersion>6.2.4</hapiFhirVersion>
+		<!-- Jackson version bundled with OpenMRS 2.5.0 -->
+		<jacksonVersion>2.12.7</jacksonVersion>
+		<!-- Spring version bundled with OpenMRS 2.5.0 -->
+		<springVersion>5.3.20</springVersion>
 	</properties>
 </project>

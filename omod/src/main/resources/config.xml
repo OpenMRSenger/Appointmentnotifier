@@ -24,21 +24,13 @@
 	</require_modules>
 
 	<aware_of_modules>
-		<aware_of_module>appointments</aware_of_module>
-		<aware_of_module>appointmentscheduling</aware_of_module>
 		<aware_of_module>fhir2</aware_of_module>
+		<aware_of_module>org.openmrs.module.appointments</aware_of_module>
+		<aware_of_module>appointmentscheduling</aware_of_module>
 		<aware_of_module>org.openmrs.module.legacyui</aware_of_module>
 	</aware_of_modules>
 	
 	<!-- Extensions -->
-	
-	
-	<!-- AOP
-	<advice>
-		<point>org.openmrs.api.FormService</point>
-		<class>@MODULE_PACKAGE@.advice.DuplicateFormAdvisor</class>
-	</advice>
-	 /AOP -->
 	
 	
 	<!-- Required Privileges 
@@ -49,17 +41,66 @@
 	 /Required Privileges -->
 
 
-	<!-- Required Global Properties 
 	<globalProperty>
-		<property>@MODULE_ID@.someProperty</property>
-		<defaultValue></defaultValue>
+		<property>appointmentnotifier.saasEndpoint</property>
+		<defaultValue>http://host.docker.internal:8888/api/v1/appointment</defaultValue>
 		<description>
-			A description of the global property goes here.  The description
-			should explain enough for administrators to understand the purpose
-			and possible values for the global property.
+			Webhook URL that receives a JSON POST on every appointment CREATED / UPDATED / CANCELLED / DELETED event.
+			For Discord testing: paste a Discord webhook URL (https://discord.com/api/webhooks/...).
+			  The module will automatically format a rich Discord embed instead of plain JSON.
+			For production: set to your Spring API endpoint (e.g. http://host.docker.internal:8888/api/v1/appointment).
+			  The module will POST application/json with fields: event, appointmentUuid, patientUuid,
+			  patientName, serviceName, status, startDateTime, endDateTime, timestamp.
 		</description>
 	</globalProperty>
-	/Required Global Properties -->
+	<globalProperty>
+		<property>appointmentnotifier.openmrsBaseUrl</property>
+		<defaultValue>http://localhost:8080/openmrs</defaultValue>
+		<description>
+			Base URL of this OpenMRS instance. Used by the REST resource (/ws/rest/v1/appointmentnotifier)
+			to fetch appointment lists. In Docker deployments keep this as http://localhost:8080/openmrs.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.fhirUsername</property>
+		<defaultValue>admin</defaultValue>
+		<description>
+			OpenMRS username used by the REST resource to authenticate internal API calls.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.fhirPassword</property>
+		<defaultValue>Admin123</defaultValue>
+		<description>
+			Password for appointmentnotifier.fhirUsername.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.enabled</property>
+		<defaultValue>true</defaultValue>
+		<description>
+			Set to false to disable all webhook notifications without uninstalling the module.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.messagingProvider</property>
+		<defaultValue>Generic</defaultValue>
+		<description>
+			Messaging provider identifier sent in the X-Messaging-Provider request header.
+			Examples: SwiftSend, Vonage, Twilio, Generic.
+			The SaaS backend uses this header to select the correct SMS adapter.
+			Has no effect when testing with a Discord webhook.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.maxRetries</property>
+		<defaultValue>5</defaultValue>
+		<description>
+			Maximum number of dispatch attempts before an outbox entry is permanently skipped.
+			To manually requeue a permanently-failed entry, reset its status to PENDING in the
+			saas_integration_queue table and its retry_count to 0.
+		</description>
+	</globalProperty>
 	
 	<!--
 	<dwr>
