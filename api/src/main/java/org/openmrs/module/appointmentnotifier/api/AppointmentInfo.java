@@ -23,17 +23,21 @@ public class AppointmentInfo extends BaseOpenmrsObject implements Serializable {
 	
 	private String patientName;
 	
+	private String artsName;
+	
 	private String startDateTime;
 	
 	private String endDateTime;
 	
 	private String serviceName;
 	
+	private String location;
+	
 	private String status;
 	
 	private String phoneNumber;
 	
-	private String email;
+	private String comments;
 	
 	@Override
 	public Integer getId() {
@@ -68,6 +72,14 @@ public class AppointmentInfo extends BaseOpenmrsObject implements Serializable {
 		this.patientName = patientName;
 	}
 	
+	public String getArtsName() {
+		return artsName;
+	}
+	
+	public void setArtsName(String artsName) {
+		this.artsName = artsName;
+	}
+	
 	public String getStartDateTime() {
 		return startDateTime;
 	}
@@ -92,6 +104,14 @@ public class AppointmentInfo extends BaseOpenmrsObject implements Serializable {
 		this.serviceName = serviceName;
 	}
 	
+	public String getLocation() {
+		return location;
+	}
+	
+	public void setLocation(String location) {
+		this.location = location;
+	}
+	
 	public String getStatus() {
 		return status;
 	}
@@ -108,11 +128,11 @@ public class AppointmentInfo extends BaseOpenmrsObject implements Serializable {
 		this.phoneNumber = phoneNumber;
 	}
 	
-	public String getEmail() {
-		return email;
+	public String getComments() {
+		return comments;
 	}
 	
-	public void setEmail(String email) {
-		this.email = email;
+	public void setComments(String comments) {
+		this.comments = comments;
 	}
 }

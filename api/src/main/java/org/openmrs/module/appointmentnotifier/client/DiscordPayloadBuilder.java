@@ -78,17 +78,14 @@ public final class DiscordPayloadBuilder {
 		// Patient contact — present in fallback JSON under _patientContact;
 		// in real FHIR R4 the phone would be on the Patient resource.
 		String phone = null;
-		String email = null;
 		JsonNode contact = root.path("_patientContact");
 		if (!contact.isMissingNode()) {
 			phone = nullIfEmpty(contact.path("phone").asText(null));
-			email = nullIfEmpty(contact.path("email").asText(null));
 		}
 
 		// Try to also extract from FHIR Patient.telecom if this is a Bundle
 		if (phone == null && root.path("resourceType").asText("").equals("Bundle")) {
 			phone = extractTelecomFromBundle(root, "phone");
-			email = extractTelecomFromBundle(root, "email");
 		}
 
 		int color = deriveColor(status);
@@ -100,7 +97,6 @@ public final class DiscordPayloadBuilder {
 		appendField(fields, "Start",    readableDate,                   true,  true);
 		if (location != null) appendField(fields, "Location", location, true,  true);
 		if (phone    != null) appendField(fields, "Phone",    phone,    true,  true);
-		if (email    != null) appendField(fields, "Email",    email,    true,  true);
 		appendField(fields, "Encounter UUID", or(encounterUuid, "—"),   false, true);
 
 		String nowIso = formatIso(new Date());

@@ -67,8 +67,7 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 	}
 	
 	private String basicAuthHeader() {
-		String username = Context.getAdministrationService()
-		        .getGlobalProperty(AppointmentServiceAdvice.GP_USERNAME);
+		String username = Context.getAdministrationService().getGlobalProperty(AppointmentServiceAdvice.GP_USERNAME);
 		String password = Context.getAdministrationService().getGlobalProperty(AppointmentServiceAdvice.GP_PASSWORD);
 		String credentials = username + ":" + password;
 		return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -83,12 +82,14 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 		desc.addProperty("appointmentUuid");
 		desc.addProperty("patientUuid");
 		desc.addProperty("patientName");
+		desc.addProperty("artsName");
 		desc.addProperty("startDateTime");
 		desc.addProperty("endDateTime");
 		desc.addProperty("serviceName");
+		desc.addProperty("location");
 		desc.addProperty("status");
 		desc.addProperty("phoneNumber");
-		desc.addProperty("email");
+		desc.addProperty("comments");
 		return desc;
 	}
 	
@@ -140,14 +141,25 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 				info.setStatus(status);
 				info.setStartDateTime(formatEpochMillis(startDateTime));
 				info.setEndDateTime(formatEpochMillis(appt.path("endDateTime").asLong(0L)));
+				info.setComments(textOrNull(appt.path("comments")));
 				
 				JsonNode service = appt.path("service");
 				info.setServiceName(textOrNull(service.path("name")));
 				
+				JsonNode locationNode = appt.path("location");
+				info.setLocation(textOrNull(locationNode.path("name")));
+				
+				JsonNode providerNode = appt.path("provider");
+				if (!providerNode.isMissingNode() && !providerNode.isNull()) {
+					String artsName = textOrNull(providerNode.path("person").path("display"));
+					if (artsName == null)
+						artsName = textOrNull(providerNode.path("display"));
+					info.setArtsName(artsName);
+				}
+				
 				JsonNode patient = appt.path("patient");
 				String patientUuid = textOrNull(patient.path("uuid"));
 				info.setPatientUuid(patientUuid);
-				// Bahmni returns display name under "name" inside the patient node
 				info.setPatientName(textOrNull(patient.path("name")));
 				
 				if (patientUuid != null) {
@@ -161,9 +173,7 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 		return results;
 	}
 	
-	/**
-	 * Looks up phone number and email via the standard OpenMRS REST person-attributes endpoint.
-	 */
+	/** Looks up phone number via the standard OpenMRS REST person-attributes endpoint. */
 	private void enrichWithPersonAttributes(AppointmentInfo info, String patientUuid) {
 		try {
 			HttpHeaders headers = new HttpHeaders();
@@ -186,8 +196,6 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 				}
 				if (info.getPhoneNumber() == null && "Telephone Number".equalsIgnoreCase(typeName)) {
 					info.setPhoneNumber(value);
-				} else if (info.getEmail() == null && "email".equalsIgnoreCase(typeName)) {
-					info.setEmail(value);
 				}
 			}
 		}

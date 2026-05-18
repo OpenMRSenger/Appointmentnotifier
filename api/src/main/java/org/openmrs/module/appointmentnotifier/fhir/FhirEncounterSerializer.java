@@ -157,8 +157,8 @@ public class FhirEncounterSerializer {
 	/**
 	 * Builds a minimal FHIR-shaped JSON when fhir2 is not available. Includes a non-standard
 	 * {@code _patientContact} block so the SaaS and
-	 * {@link org.openmrs.module.appointmentnotifier.client.DiscordPayloadBuilder} can extract
-	 * phone/email without a second REST call.
+	 * {@link org.openmrs.module.appointmentnotifier.client.DiscordPayloadBuilder} can extract phone
+	 * without a second REST call.
 	 */
 	private String buildFallbackJson(Encounter encounter) {
 		Patient patient = encounter.getPatient();
@@ -167,7 +167,6 @@ public class FhirEncounterSerializer {
 		String patientDisplay = patient != null && patient.getPersonName() != null ? patient.getPersonName().getFullName()
 		        : "Unknown";
 		String phone = resolvePhone(patient);
-		String email = resolveEmail(patient);
 		String locationName = encounter.getLocation() != null ? encounter.getLocation().getName() : null;
 		String encounterDate = encounter.getEncounterDatetime() != null ? formatIso(encounter.getEncounterDatetime()) : null;
 		
@@ -198,8 +197,7 @@ public class FhirEncounterSerializer {
 		
 		// Non-standard contact block for Discord / SaaS phone lookup
 		sb.append(q("_patientContact")).append(":{");
-		sb.append(q("phone")).append(":").append(q(phone)).append(",");
-		sb.append(q("email")).append(":").append(q(email));
+		sb.append(q("phone")).append(":").append(q(phone));
 		sb.append("}");
 		
 		sb.append("}");
@@ -210,10 +208,6 @@ public class FhirEncounterSerializer {
 	
 	private String resolvePhone(Patient patient) {
 		return resolvePersonAttribute(patient, "phone", "telephone", "mobile", "contact");
-	}
-	
-	private String resolveEmail(Patient patient) {
-		return resolvePersonAttribute(patient, "email");
 	}
 	
 	private String resolvePersonAttribute(Patient patient, String... keywords) {

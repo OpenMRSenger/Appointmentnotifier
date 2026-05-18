@@ -45,14 +45,12 @@ public class SaasQueueTask extends AbstractTask {
 		isExecuting = true;
 		Context.openSession();
 		try {
-			Context.addProxyPrivilege("Get Encounters");
 			runDispatchCycle();
 		}
 		catch (Exception e) {
 			log.error("SaasQueueTask: dispatch cycle failed", e);
 		}
 		finally {
-			Context.removeProxyPrivilege("Get Encounters");
 			Context.closeSession();
 			isExecuting = false;
 		}
