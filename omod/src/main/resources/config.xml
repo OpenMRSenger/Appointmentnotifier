@@ -46,11 +46,9 @@
 		<defaultValue>http://host.docker.internal:8888/api/v1/appointment</defaultValue>
 		<description>
 			Webhook URL that receives a JSON POST on every appointment CREATED / UPDATED / CANCELLED / DELETED event.
-			For Discord testing: paste a Discord webhook URL (https://discord.com/api/webhooks/...).
-			  The module will automatically format a rich Discord embed instead of plain JSON.
-			For production: set to your Spring API endpoint (e.g. http://host.docker.internal:8888/api/v1/appointment).
-			  The module will POST application/json with fields: event, appointmentUuid, patientUuid,
-			  patientName, serviceName, status, startDateTime, endDateTime, timestamp.
+			Set to your Spring API endpoint (e.g. http://host.docker.internal:8888/api/v1/appointment).
+			The module will POST application/json with fields: event, appointmentUuid, patientUuid,
+			patientName, serviceName, status, startDateTime, endDateTime, timestamp.
 		</description>
 	</globalProperty>
 	<globalProperty>
@@ -89,7 +87,6 @@
 			Messaging provider identifier sent in the X-Messaging-Provider request header.
 			Examples: SwiftSend, Vonage, Twilio, Generic.
 			The SaaS backend uses this header to select the correct SMS adapter.
-			Has no effect when testing with a Discord webhook.
 		</description>
 	</globalProperty>
 	<globalProperty>

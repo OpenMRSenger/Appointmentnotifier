@@ -156,8 +156,7 @@ public class FhirEncounterSerializer {
 	
 	/**
 	 * Builds a minimal FHIR-shaped JSON when fhir2 is not available. Includes a non-standard
-	 * {@code _patientContact} block so the SaaS and
-	 * {@link org.openmrs.module.appointmentnotifier.client.DiscordPayloadBuilder} can extract phone
+	 * {@code _patientContact} block so the SaaS backend can extract the phone number
 	 * without a second REST call.
 	 */
 	private String buildFallbackJson(Encounter encounter) {
@@ -195,7 +194,7 @@ public class FhirEncounterSerializer {
 			sb.append("}}],");
 		}
 		
-		// Non-standard contact block for Discord / SaaS phone lookup
+		// Non-standard contact block for SaaS phone lookup
 		sb.append(q("_patientContact")).append(":{");
 		sb.append(q("phone")).append(":").append(q(phone));
 		sb.append("}");
