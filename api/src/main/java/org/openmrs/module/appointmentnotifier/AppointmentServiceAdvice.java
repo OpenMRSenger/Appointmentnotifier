@@ -290,7 +290,4 @@ public class AppointmentServiceAdvice implements MethodInterceptor {
 		return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\"";
 	}
 	
-	private static String or(String value, String fallback) {
-		return value != null ? value : fallback;
-	}
 }

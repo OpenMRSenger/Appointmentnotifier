@@ -13,9 +13,10 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.openmrs.api.AdministrationService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.appointmentnotifier.AppointmentNotifierConstants;
-import org.openmrs.module.appointmentnotifier.client.SaasHttpClient;
+import org.openmrs.module.appointmentnotifier.client.SaasDispatcher;
 import org.openmrs.module.appointmentnotifier.outbox.OutboxEntry;
 import org.openmrs.module.appointmentnotifier.outbox.OutboxService;
 import org.openmrs.scheduler.tasks.AbstractTask;
@@ -59,8 +60,9 @@ public class SaasQueueTask extends AbstractTask {
 	// ── Dispatch logic ────────────────────────────────────────────────────────
 	
 	private void runDispatchCycle() {
-		String endpoint = Context.getAdministrationService().getGlobalProperty(
-		    AppointmentNotifierConstants.GP_SAAS_ENDPOINT, "");
+		AdministrationService adminService = Context.getAdministrationService();
+		
+		String endpoint = adminService.getGlobalProperty(AppointmentNotifierConstants.GP_SAAS_ENDPOINT, "");
 		
 		if (endpoint == null || endpoint.trim().isEmpty()) {
 			log.warn("SaasQueueTask: " + AppointmentNotifierConstants.GP_SAAS_ENDPOINT
@@ -68,16 +70,17 @@ public class SaasQueueTask extends AbstractTask {
 			return;
 		}
 		
-		String webhookToken = Context.getAdministrationService().getGlobalProperty(
-		    AppointmentNotifierConstants.GP_SAAS_WEBHOOK_TOKEN, "");
+		String webhookToken = adminService.getGlobalProperty(AppointmentNotifierConstants.GP_SAAS_WEBHOOK_TOKEN, "");
 		
-		int maxRetries = parseMaxRetries(Context.getAdministrationService().getGlobalProperty(
-		    AppointmentNotifierConstants.GP_MAX_RETRIES, String.valueOf(AppointmentNotifierConstants.DEFAULT_MAX_RETRIES)));
+		int maxRetries = parseMaxRetries(adminService.getGlobalProperty(AppointmentNotifierConstants.GP_MAX_RETRIES,
+		    String.valueOf(AppointmentNotifierConstants.DEFAULT_MAX_RETRIES)));
 		
+		// OpenMRS scheduler tasks are instantiated by the scheduler, not Spring, so
+		// constructor injection is unavailable here. Service-locator is the only option.
 		OutboxService outboxService = Context
 		        .getRegisteredComponent("appointmentNotifierOutboxService", OutboxService.class);
 		
-		SaasHttpClient httpClient = Context.getRegisteredComponent("saasHttpClient", SaasHttpClient.class);
+		SaasDispatcher httpClient = Context.getRegisteredComponent("saasHttpClient", SaasDispatcher.class);
 		
 		List<OutboxEntry> entries = outboxService.findDispatchable(maxRetries);
 		if (entries.isEmpty()) {

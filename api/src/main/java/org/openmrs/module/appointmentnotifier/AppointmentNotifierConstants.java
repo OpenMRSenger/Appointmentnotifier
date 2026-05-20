@@ -16,6 +16,8 @@ public final class AppointmentNotifierConstants {
 	
 	public static final String GP_SAAS_ENDPOINT = "appointmentnotifier.saasEndpoint";
 	
+	public static final String GP_SAAS_WEBHOOK_TOKEN = "appointmentnotifier.saasWebhookToken";
+	
 	public static final String GP_MESSAGING_PROVIDER = "appointmentnotifier.messagingProvider";
 	
 	public static final String GP_OPENMRS_URL = "appointmentnotifier.openmrsBaseUrl";
@@ -36,8 +38,6 @@ public final class AppointmentNotifierConstants {
 	
 	public static final String GP_MESSAGING_PROVIDER_CLIENT_SECRET = "appointmentnotifier.messagingProviderClientSecret";
 	
-	public static final String GP_SAAS_WEBHOOK_TOKEN = "appointmentnotifier.saasWebhookToken";
-	
 	public static final String GP_ENABLED = "appointmentnotifier.enabled";
 	
 	public static final String GP_MAX_RETRIES = "appointmentnotifier.maxRetries";
@@ -53,8 +53,6 @@ public final class AppointmentNotifierConstants {
 	public static final long TASK_INTERVAL_SECONDS = 300L;
 	
 	// ── Defaults ─────────────────────────────────────────────────────────────
-	
-	public static final String DEFAULT_ENDPOINT = "http://host.docker.internal:8888/api/v1/appointment";
 	
 	public static final String DEFAULT_PROVIDER = "SWIFTSEND";
 	

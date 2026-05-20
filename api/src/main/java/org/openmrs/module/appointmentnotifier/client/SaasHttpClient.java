@@ -18,30 +18,20 @@ import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.openmrs.api.AdministrationService;
-import org.openmrs.api.context.Context;
-import org.openmrs.module.appointmentnotifier.AppointmentNotifierConstants;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
-import static org.openmrs.module.appointmentnotifier.AppointmentNotifierConstants.*;
 
 /**
  * Low-level HTTP client that POSTs outbox entries to the configured SaaS endpoint.
  *
- * <p>Provider credentials are read directly from OpenMRS global properties so the SaaS backend
- * can forward them to the appropriate messaging provider:
- * <ul>
- *   <li><strong>SWIFTSEND / ASYNCFLOW</strong> — {@code X-Messaging-Provider-Token} (API key)</li>
- *   <li><strong>LEGACYLINK</strong> — {@code X-Messaging-Provider-Username} / {@code X-Messaging-Provider-Password} (BASIC auth)</li>
- *   <li><strong>SECUREPOST</strong> — {@code X-Messaging-Provider-Client-Id} / {@code X-Messaging-Provider-Client-Secret} (JWT)</li>
- * </ul>
- * Headers are omitted when the corresponding global property is blank.
+ * <p>Dynamic headers (hospital name, provider credentials) are delegated to
+ * {@link ConnectionHeadersApplier}. This class owns only the HTTP mechanics.
  *
- * <p>This class is intentionally thin — no retry logic, no thread pool.
- * Retry orchestration is the responsibility of {@link org.openmrs.module.appointmentnotifier.task.SaasQueueTask}.
+ * <p>No retry logic or thread pool — retry orchestration belongs to
+ * {@link org.openmrs.module.appointmentnotifier.task.SaasQueueTask}.
  */
 @Component("saasHttpClient")
-public class SaasHttpClient {
+public class SaasHttpClient implements SaasDispatcher {
 
 	private static final Log log = LogFactory.getLog(SaasHttpClient.class);
 
@@ -49,20 +39,18 @@ public class SaasHttpClient {
 
 	private static final int READ_TIMEOUT_MS    = 15_000;
 
-	// ── Public API ────────────────────────────────────────────────────────────
+	private final ConnectionHeadersApplier headersApplier;
 
-	/**
-	 * Dispatches one outbox entry.
-	 *
-	 * @param endpoint      target SaaS endpoint URL
-	 * @param webhookToken  secret key for the SaaS endpoint; sent as-is in the {@code Authorization} header (skipped if blank)
-	 * @param encounterUuid the encounter UUID (used for logging)
-	 * @param fhirPayload   the JSON string stored in the outbox
-	 * @return {@code true} if the server responded with HTTP 2xx
-	 */
+	@Autowired
+	public SaasHttpClient(ConnectionHeadersApplier headersApplier) {
+		this.headersApplier = headersApplier;
+	}
+
+	// ── SaasDispatcher ────────────────────────────────────────────────────────
+
+	@Override
 	public boolean sendPayload(String endpoint, String webhookToken,
 	        String encounterUuid, String fhirPayload) {
-
 		return doPost(endpoint, fhirPayload, webhookToken, encounterUuid);
 	}
 
@@ -79,15 +67,8 @@ public class SaasHttpClient {
 			conn.setReadTimeout(READ_TIMEOUT_MS);
 			conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
 			conn.setRequestProperty("X-Source", "appointmentnotifier-omod");
-			AdministrationService admin = Context.getAdministrationService();
-			String hospitalName = admin.getGlobalProperty(GP_HOSPITAL_NAME, "");
-			if (hospitalName == null || hospitalName.isEmpty()) {
-				hospitalName = admin.getGlobalProperty("hospitalName", "Unknown Hospital");
-			}
-			log.debug("Setting X-Hospital-Name header to: '" + hospitalName + "'");
-			conn.setRequestProperty("X-Hospital-Name", hospitalName);
 
-			applyProviderHeaders(conn);
+			headersApplier.applyHeaders(conn);
 
 			if (webhookToken != null && !webhookToken.isEmpty()) {
 				conn.setRequestProperty("Authorization", webhookToken);
@@ -102,8 +83,8 @@ public class SaasHttpClient {
 
 			int httpStatus = conn.getResponseCode();
 
-			if (httpStatus == 200) {
-				log.info("Dispatched encounter " + encounterUuid + " → HTTP 200");
+			if (httpStatus >= 200 && httpStatus < 300) {
+				log.info("Dispatched encounter " + encounterUuid + " → HTTP " + httpStatus);
 				return true;
 			}
 
@@ -123,49 +104,6 @@ public class SaasHttpClient {
 		}
 	}
 
-	/**
-	 * Reads provider identity and credentials from global properties and sets the appropriate
-	 * request headers. Headers for blank values are omitted so the SaaS ignores them.
-	 *
-	 * <pre>
-	 * Provider          Headers set
-	 * ──────────────    ──────────────────────────────────────────────────────
-	 * SWIFTSEND         X-Messaging-Provider, X-Messaging-Provider-Token
-	 * ASYNCFLOW         X-Messaging-Provider, X-Messaging-Provider-Token
-	 * LEGACYLINK        X-Messaging-Provider, X-Messaging-Provider-Username,
-	 *                                          X-Messaging-Provider-Password
-	 * SECUREPOST        X-Messaging-Provider, X-Messaging-Provider-Client-Id,
-	 *                                          X-Messaging-Provider-Client-Secret
-	 * </pre>
-	 */
-	private void applyProviderHeaders(HttpURLConnection conn) {
-		AdministrationService admin = Context.getAdministrationService();
-
-		String provider = admin.getGlobalProperty(GP_MESSAGING_PROVIDER, DEFAULT_PROVIDER);
-		conn.setRequestProperty("X-Messaging-Provider", provider);
-
-		setIfPresent(conn, "X-Messaging-Provider-Token",
-		    admin.getGlobalProperty(GP_MESSAGING_PROVIDER_TOKEN, ""));
-
-		setIfPresent(conn, "X-Messaging-Provider-Username",
-		    admin.getGlobalProperty(GP_MESSAGING_PROVIDER_USERNAME, ""));
-
-		setIfPresent(conn, "X-Messaging-Provider-Password",
-		    admin.getGlobalProperty(GP_MESSAGING_PROVIDER_PASSWORD, ""));
-
-		setIfPresent(conn, "X-Messaging-Provider-Client-Id",
-		    admin.getGlobalProperty(GP_MESSAGING_PROVIDER_CLIENT_ID, ""));
-
-		setIfPresent(conn, "X-Messaging-Provider-Client-Secret",
-		    admin.getGlobalProperty(GP_MESSAGING_PROVIDER_CLIENT_SECRET, ""));
-	}
-
-	private static void setIfPresent(HttpURLConnection conn, String header, String value) {
-		if (value != null && !value.isEmpty()) {
-			conn.setRequestProperty(header, value);
-		}
-	}
-
 	// ── Utilities ─────────────────────────────────────────────────────────────
 
 	private static String readStream(InputStream is) {
@@ -173,7 +111,10 @@ public class SaasHttpClient {
 		try {
 			return new String(is.readAllBytes(), StandardCharsets.UTF_8);
 		}
-		catch (Exception ignored) { return ""; }
+		catch (Exception e) {
+			log.debug("Failed to read error response stream", e);
+			return "";
+		}
 	}
 
 	private static String abbreviate(String s, int maxLen) {
