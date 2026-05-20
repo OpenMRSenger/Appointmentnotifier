@@ -20,9 +20,23 @@ public final class AppointmentNotifierConstants {
 	
 	public static final String GP_OPENMRS_URL = "appointmentnotifier.openmrsBaseUrl";
 	
-	public static final String GP_USERNAME = "appointmentnotifier.fhirUsername";
+	public static final String GP_USERNAME = "appointmentnotifier.openmrsUsername";
 	
-	public static final String GP_PASSWORD = "appointmentnotifier.fhirPassword";
+	public static final String GP_PASSWORD = "appointmentnotifier.openmrsPassword";
+	
+	public static final String GP_HOSPITAL_NAME = "appointmentnotifier.hospitalName";
+	
+	public static final String GP_MESSAGING_PROVIDER_TOKEN = "appointmentnotifier.messagingProviderToken";
+	
+	public static final String GP_MESSAGING_PROVIDER_USERNAME = "appointmentnotifier.messagingProviderUsername";
+	
+	public static final String GP_MESSAGING_PROVIDER_PASSWORD = "appointmentnotifier.messagingProviderPassword";
+	
+	public static final String GP_MESSAGING_PROVIDER_CLIENT_ID = "appointmentnotifier.messagingProviderClientId";
+	
+	public static final String GP_MESSAGING_PROVIDER_CLIENT_SECRET = "appointmentnotifier.messagingProviderClientSecret";
+	
+	public static final String GP_SAAS_WEBHOOK_TOKEN = "appointmentnotifier.saasWebhookToken";
 	
 	public static final String GP_ENABLED = "appointmentnotifier.enabled";
 	
@@ -40,7 +54,7 @@ public final class AppointmentNotifierConstants {
 	
 	public static final String DEFAULT_ENDPOINT = "http://host.docker.internal:8888/api/v1/appointment";
 	
-	public static final String DEFAULT_PROVIDER = "Generic";
+	public static final String DEFAULT_PROVIDER = "SWIFTSEND";
 	
 	public static final int DEFAULT_MAX_RETRIES = 5;
 	

@@ -267,12 +267,22 @@ Values are read at dispatch time, so changes take effect at the next scheduler c
 | Property key | Default | Purpose |
 |---|---|---|
 | `appointmentnotifier.saasEndpoint` | `http://host.docker.internal:8888/...` | Where to POST the appointment payload |
-| `appointmentnotifier.messagingProvider` | `Generic` | Value of `X-Messaging-Provider` header |
-| `appointmentnotifier.maxRetries` | `5` | Failures before an entry is abandoned |
+| `appointmentnotifier.saasWebhookToken` | _(blank)_ | Bearer token for the SaaS endpoint (`Authorization: Bearer`) |
 | `appointmentnotifier.enabled` | `true` | Master kill-switch |
-| `appointmentnotifier.openmrsBaseUrl` | `http://localhost:8080/openmrs` | Used by the REST resource |
-| `appointmentnotifier.fhirUsername` | `admin` | Credentials for internal REST calls |
-| `appointmentnotifier.fhirPassword` | `Admin123` | Credentials for internal REST calls |
+| `appointmentnotifier.maxRetries` | `5` | Failures before an entry is abandoned |
+| `appointmentnotifier.hospitalName` | _(blank)_ | Facility name in payloads; falls back to encounter location |
+| `appointmentnotifier.openmrsBaseUrl` | `http://localhost:8080/openmrs` | Used for internal REST calls |
+| `appointmentnotifier.openmrsUsername` | `admin` | Username for internal REST calls |
+| `appointmentnotifier.openmrsPassword` | `Admin123` | Password for internal REST calls |
+| `appointmentnotifier.messagingProvider` | `SwiftSend` | One of: SwiftSend, AsyncFlow, LegacyLink, SecurePost |
+| **SwiftSend / AsyncFlow** | | |
+| `appointmentnotifier.messagingProviderToken` | _(blank)_ | API key → `X-Messaging-Provider-Token` |
+| **LegacyLink** | | |
+| `appointmentnotifier.messagingProviderUsername` | _(blank)_ | BASIC username → `X-Messaging-Provider-Username` |
+| `appointmentnotifier.messagingProviderPassword` | _(blank)_ | BASIC password → `X-Messaging-Provider-Password` |
+| **SecurePost** | | |
+| `appointmentnotifier.messagingProviderClientId` | _(blank)_ | Client ID → `X-Messaging-Provider-Client-Id` |
+| `appointmentnotifier.messagingProviderClientSecret` | _(blank)_ | Client secret → `X-Messaging-Provider-Client-Secret` |
 
 ---
 

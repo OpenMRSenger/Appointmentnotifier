@@ -68,8 +68,8 @@ public class SaasQueueTask extends AbstractTask {
 			return;
 		}
 		
-		String provider = Context.getAdministrationService().getGlobalProperty(
-		    AppointmentNotifierConstants.GP_MESSAGING_PROVIDER, AppointmentNotifierConstants.DEFAULT_PROVIDER);
+		String webhookToken = Context.getAdministrationService().getGlobalProperty(
+		    AppointmentNotifierConstants.GP_SAAS_WEBHOOK_TOKEN, "");
 		
 		int maxRetries = parseMaxRetries(Context.getAdministrationService().getGlobalProperty(
 		    AppointmentNotifierConstants.GP_MAX_RETRIES, String.valueOf(AppointmentNotifierConstants.DEFAULT_MAX_RETRIES)));
@@ -92,7 +92,7 @@ public class SaasQueueTask extends AbstractTask {
 		
 		for (OutboxEntry entry : entries) {
 			try {
-				boolean success = httpClient.sendPayload(endpoint, provider, entry.getEncounterUuid(),
+				boolean success = httpClient.sendPayload(endpoint, webhookToken, entry.getEncounterUuid(),
 				    entry.getFhirPayload());
 				
 				if (success) {

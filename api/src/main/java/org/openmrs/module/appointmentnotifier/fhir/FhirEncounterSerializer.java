@@ -19,7 +19,9 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.openmrs.Encounter;
 import org.openmrs.Patient;
+import org.openmrs.api.context.Context;
 import org.openmrs.api.context.ServiceContext;
+import org.openmrs.module.appointmentnotifier.AppointmentNotifierConstants;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
@@ -156,8 +158,8 @@ public class FhirEncounterSerializer {
 	
 	/**
 	 * Builds a minimal FHIR-shaped JSON when fhir2 is not available. Includes a non-standard
-	 * {@code _patientContact} block so the SaaS backend can extract the phone number
-	 * without a second REST call.
+	 * {@code _patientContact} block so the SaaS backend can extract the phone number without a
+	 * second REST call.
 	 */
 	private String buildFallbackJson(Encounter encounter) {
 		Patient patient = encounter.getPatient();
@@ -168,6 +170,10 @@ public class FhirEncounterSerializer {
 		String phone = resolvePhone(patient);
 		String locationName = encounter.getLocation() != null ? encounter.getLocation().getName() : null;
 		String encounterDate = encounter.getEncounterDatetime() != null ? formatIso(encounter.getEncounterDatetime()) : null;
+		String configuredHospitalName = Context.getAdministrationService().getGlobalProperty(
+		    AppointmentNotifierConstants.GP_HOSPITAL_NAME, "");
+		String facilityName = (configuredHospitalName != null && !configuredHospitalName.isEmpty()) ? configuredHospitalName
+		        : locationName;
 		
 		StringBuilder sb = new StringBuilder();
 		sb.append("{");
@@ -194,7 +200,10 @@ public class FhirEncounterSerializer {
 			sb.append("}}],");
 		}
 		
-		// Non-standard contact block for SaaS phone lookup
+		// Non-standard fields for SaaS enrichment
+		if (facilityName != null) {
+			sb.append(q("_facilityName")).append(":").append(q(facilityName)).append(",");
+		}
 		sb.append(q("_patientContact")).append(":{");
 		sb.append(q("phone")).append(":").append(q(phone));
 		sb.append("}");
