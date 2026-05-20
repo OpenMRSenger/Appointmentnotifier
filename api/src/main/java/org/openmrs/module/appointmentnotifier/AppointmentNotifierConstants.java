@@ -42,6 +42,8 @@ public final class AppointmentNotifierConstants {
 	
 	public static final String GP_MAX_RETRIES = "appointmentnotifier.maxRetries";
 	
+	public static final String GP_TASK_INTERVAL_SECONDS = "appointmentnotifier.taskIntervalSeconds";
+	
 	// ── Scheduler task ────────────────────────────────────────────────────────
 	
 	/** Human-readable name stored in the OpenMRS scheduler table. */

@@ -84,6 +84,14 @@
 		</description>
 	</globalProperty>
 	<globalProperty>
+		<property>appointmentnotifier.taskIntervalSeconds</property>
+		<defaultValue>300</defaultValue>
+		<description>
+			How often (in seconds) the outbox dispatcher runs. Default is 300 (5 minutes).
+			Changes take effect after the module is restarted.
+		</description>
+	</globalProperty>
+	<globalProperty>
 		<property>appointmentnotifier.hospitalName</property>
 		<defaultValue></defaultValue>
 		<description>

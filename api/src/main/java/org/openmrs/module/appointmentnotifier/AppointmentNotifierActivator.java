@@ -25,7 +25,7 @@ import org.openmrs.scheduler.TaskDefinition;
  * <ol>
  * <li>Registers {@link AppointmentServiceAdvice} as AOP advice on the Bahmni AppointmentsService so
  * every appointment save/cancel triggers an outbox enqueue.</li>
- * <li>Registers and starts {@link SaasQueueTask} in the OpenMRS scheduler (5-min interval).</li>
+ * <li>Registers and starts {@link SaasQueueTask} in the OpenMRS scheduler (configurable interval).</li>
  * </ol>
  * On stop: removes AOP advice and scheduler task.
  */
@@ -86,9 +86,15 @@ public class AppointmentNotifierActivator extends BaseModuleActivator {
 	private void registerSchedulerTask() {
 		try {
 			SchedulerService scheduler = Context.getSchedulerService();
+			long intervalSeconds = resolveTaskInterval();
 			TaskDefinition existing = scheduler.getTaskByName(AppointmentNotifierConstants.TASK_NAME);
 			
 			if (existing != null) {
+				if (existing.getRepeatInterval() != intervalSeconds) {
+					existing.setRepeatInterval(intervalSeconds);
+					scheduler.saveTaskDefinition(existing);
+					log.info("AppointmentNotifier: updated SaasQueueTask interval to " + intervalSeconds + "s.");
+				}
 				if (!existing.getStarted()) {
 					scheduler.scheduleTask(existing);
 					log.info("AppointmentNotifier: re-started existing SaasQueueTask.");
@@ -102,16 +108,29 @@ public class AppointmentNotifierActivator extends BaseModuleActivator {
 			taskDef.setName(AppointmentNotifierConstants.TASK_NAME);
 			taskDef.setDescription("Dispatches pending entries from saas_integration_queue to the SaaS webhook endpoint.");
 			taskDef.setTaskClass(SaasQueueTask.class.getName());
-			taskDef.setRepeatInterval(AppointmentNotifierConstants.TASK_INTERVAL_SECONDS);
+			taskDef.setRepeatInterval(intervalSeconds);
 			taskDef.setStartOnStartup(true);
 			taskDef.setStarted(true);
 			
 			scheduler.scheduleTask(taskDef);
-			log.info("AppointmentNotifier: SaasQueueTask registered (interval="
-			        + AppointmentNotifierConstants.TASK_INTERVAL_SECONDS + "s).");
+			log.info("AppointmentNotifier: SaasQueueTask registered (interval=" + intervalSeconds + "s).");
 		}
 		catch (SchedulerException e) {
 			log.error("AppointmentNotifier: could not register SaasQueueTask", e);
 		}
+	}
+	
+	private static long resolveTaskInterval() {
+		String raw = Context.getAdministrationService().getGlobalProperty(
+		    AppointmentNotifierConstants.GP_TASK_INTERVAL_SECONDS, "");
+		if (raw != null && !raw.trim().isEmpty()) {
+			try {
+				long v = Long.parseLong(raw.trim());
+				if (v > 0)
+					return v;
+			}
+			catch (NumberFormatException ignored) {}
+		}
+		return AppointmentNotifierConstants.TASK_INTERVAL_SECONDS;
 	}
 }
