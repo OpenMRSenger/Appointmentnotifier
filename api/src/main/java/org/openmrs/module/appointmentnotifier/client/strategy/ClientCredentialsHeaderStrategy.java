@@ -9,15 +9,16 @@
  */
 package org.openmrs.module.appointmentnotifier.client.strategy;
 
-import java.net.HttpURLConnection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.openmrs.module.appointmentnotifier.client.ProviderCredentials;
 import org.openmrs.module.appointmentnotifier.client.ProviderHeaderStrategy;
 import org.springframework.stereotype.Component;
 
 /**
- * Handles SECUREPOST by emitting {@code X-Messaging-Provider-Client-Id} and
- * {@code X-Messaging-Provider-Client-Secret}.
+ * Handles SECUREPOST: contributes only {@code clientId} and {@code clientSecret} to
+ * {@code x-provider-config}.
  */
 @Component
 public class ClientCredentialsHeaderStrategy implements ProviderHeaderStrategy {
@@ -28,14 +29,16 @@ public class ClientCredentialsHeaderStrategy implements ProviderHeaderStrategy {
 	}
 	
 	@Override
-	public void applyHeaders(HttpURLConnection conn, ProviderCredentials credentials) {
+	public Map<String, String> providerConfig(ProviderCredentials credentials) {
+		Map<String, String> config = new LinkedHashMap<>();
 		String clientId = credentials.getClientId();
 		if (clientId != null && !clientId.isEmpty()) {
-			conn.setRequestProperty("X-Messaging-Provider-Client-Id", clientId);
+			config.put("clientId", clientId);
 		}
 		String clientSecret = credentials.getClientSecret();
 		if (clientSecret != null && !clientSecret.isEmpty()) {
-			conn.setRequestProperty("X-Messaging-Provider-Client-Secret", clientSecret);
+			config.put("clientSecret", clientSecret);
 		}
+		return config;
 	}
 }

@@ -9,15 +9,16 @@
  */
 package org.openmrs.module.appointmentnotifier.client.strategy;
 
-import java.net.HttpURLConnection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.openmrs.module.appointmentnotifier.client.ProviderCredentials;
 import org.openmrs.module.appointmentnotifier.client.ProviderHeaderStrategy;
 import org.springframework.stereotype.Component;
 
 /**
- * Handles LEGACYLINK by emitting {@code X-Messaging-Provider-Username} and
- * {@code X-Messaging-Provider-Password}.
+ * Handles LEGACYLINK: contributes only {@code username} and {@code password} to
+ * {@code x-provider-config}.
  */
 @Component
 public class BasicAuthHeaderStrategy implements ProviderHeaderStrategy {
@@ -28,14 +29,16 @@ public class BasicAuthHeaderStrategy implements ProviderHeaderStrategy {
 	}
 	
 	@Override
-	public void applyHeaders(HttpURLConnection conn, ProviderCredentials credentials) {
+	public Map<String, String> providerConfig(ProviderCredentials credentials) {
+		Map<String, String> config = new LinkedHashMap<>();
 		String username = credentials.getUsername();
 		if (username != null && !username.isEmpty()) {
-			conn.setRequestProperty("X-Messaging-Provider-Username", username);
+			config.put("username", username);
 		}
 		String password = credentials.getPassword();
 		if (password != null && !password.isEmpty()) {
-			conn.setRequestProperty("X-Messaging-Provider-Password", password);
+			config.put("password", password);
 		}
+		return config;
 	}
 }

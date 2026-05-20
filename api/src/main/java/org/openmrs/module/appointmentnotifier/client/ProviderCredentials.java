@@ -15,7 +15,7 @@ package org.openmrs.module.appointmentnotifier.client;
  */
 public final class ProviderCredentials {
 	
-	private final String token;
+	private final String apiKey;
 	
 	private final String username;
 	
@@ -25,16 +25,16 @@ public final class ProviderCredentials {
 	
 	private final String clientSecret;
 	
-	public ProviderCredentials(String token, String username, String password, String clientId, String clientSecret) {
-		this.token = token;
+	public ProviderCredentials(String apiKey, String username, String password, String clientId, String clientSecret) {
+		this.apiKey = apiKey;
 		this.username = username;
 		this.password = password;
 		this.clientId = clientId;
 		this.clientSecret = clientSecret;
 	}
 	
-	public String getToken() {
-		return token;
+	public String getApiKey() {
+		return apiKey;
 	}
 	
 	public String getUsername() {

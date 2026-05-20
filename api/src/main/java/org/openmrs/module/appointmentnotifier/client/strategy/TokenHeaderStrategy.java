@@ -9,9 +9,11 @@
  */
 package org.openmrs.module.appointmentnotifier.client.strategy;
 
-import java.net.HttpURLConnection;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 import org.openmrs.module.appointmentnotifier.client.ProviderCredentials;
@@ -19,8 +21,8 @@ import org.openmrs.module.appointmentnotifier.client.ProviderHeaderStrategy;
 import org.springframework.stereotype.Component;
 
 /**
- * Handles token-based providers (SWIFTSEND, ASYNCFLOW) by emitting
- * {@code X-Messaging-Provider-Token}.
+ * Handles token-based providers (SWIFTSEND, ASYNCFLOW): contributes only {@code apiKey} to
+ * {@code x-provider-config}, matching {@code SwiftSendConfig} / {@code AsyncFlowConfig}.
  */
 @Component
 public class TokenHeaderStrategy implements ProviderHeaderStrategy {
@@ -33,10 +35,13 @@ public class TokenHeaderStrategy implements ProviderHeaderStrategy {
 	}
 
 	@Override
-	public void applyHeaders(HttpURLConnection conn, ProviderCredentials credentials) {
-		String token = credentials.getToken();
-		if (token != null && !token.isEmpty()) {
-			conn.setRequestProperty("X-Messaging-Provider-Token", token);
+	public Map<String, String> providerConfig(ProviderCredentials credentials) {
+		String apiKey = credentials.getApiKey();
+		if (apiKey == null || apiKey.isEmpty()) {
+			return Collections.emptyMap();
 		}
+		Map<String, String> config = new LinkedHashMap<>();
+		config.put("apiKey", apiKey);
+		return config;
 	}
 }

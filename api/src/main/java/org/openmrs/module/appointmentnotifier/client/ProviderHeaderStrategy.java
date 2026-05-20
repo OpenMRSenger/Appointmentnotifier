@@ -9,10 +9,10 @@
  */
 package org.openmrs.module.appointmentnotifier.client;
 
-import java.net.HttpURLConnection;
+import java.util.Map;
 
 /**
- * Strategy for applying provider-specific credential headers to an outgoing HTTP request.
+ * Strategy for building the provider-specific credential payload sent in {@code x-provider-config}.
  * <p>
  * Implement this interface and annotate with {@code @Component} to register a new provider without
  * modifying any existing class (Open/Closed Principle).
@@ -27,8 +27,9 @@ public interface ProviderHeaderStrategy {
 	boolean supports(String providerName);
 	
 	/**
-	 * Writes the appropriate credential headers onto {@code conn}. Headers for blank credential
-	 * values must be omitted so the SaaS backend ignores them.
+	 * Returns only the credential fields this provider needs. Blank values must be omitted so the
+	 * SaaS backend does not receive empty keys. The map is serialised to JSON and sent as
+	 * {@code x-provider-config}.
 	 */
-	void applyHeaders(HttpURLConnection conn, ProviderCredentials credentials);
+	Map<String, String> providerConfig(ProviderCredentials credentials);
 }

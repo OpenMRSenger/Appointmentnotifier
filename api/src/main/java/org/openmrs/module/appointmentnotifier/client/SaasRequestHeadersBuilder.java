@@ -11,6 +11,8 @@ package org.openmrs.module.appointmentnotifier.client;
 
 import java.net.HttpURLConnection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -23,7 +25,8 @@ import static org.openmrs.module.appointmentnotifier.AppointmentNotifierConstant
 /**
  * Reads dynamic request headers from OpenMRS global properties and applies them to an outgoing
  * connection. Provider-specific credential headers are delegated to the matching
- * {@link ProviderHeaderStrategy}, keeping this class closed to credential-format changes.
+ * {@link ProviderHeaderStrategy} and emitted as a single {@code x-provider-config} JSON header,
+ * keeping this class closed to credential-format changes.
  */
 @Component
 public class SaasRequestHeadersBuilder implements ConnectionHeadersApplier {
@@ -40,11 +43,6 @@ public class SaasRequestHeadersBuilder implements ConnectionHeadersApplier {
 		this.strategies = strategies;
 	}
 	
-	/**
-	 * Applies all GP-backed headers to {@code conn}: hospital name, messaging provider identity,
-	 * and the provider-specific credential headers chosen by the active
-	 * {@link ProviderHeaderStrategy}.
-	 */
 	@Override
 	public void applyHeaders(HttpURLConnection conn) {
 		String hospitalName = adminService.getGlobalProperty(GP_HOSPITAL_NAME, "Unknown Hospital");
@@ -55,10 +53,16 @@ public class SaasRequestHeadersBuilder implements ConnectionHeadersApplier {
 		conn.setRequestProperty("X-Messaging-Provider", provider);
 
 		ProviderCredentials credentials = readCredentials();
-		strategies.stream()
+		Optional<ProviderHeaderStrategy> matched = strategies.stream()
 		        .filter(s -> s.supports(provider))
-		        .findFirst()
-		        .ifPresent(s -> s.applyHeaders(conn, credentials));
+		        .findFirst();
+
+		if (matched.isPresent()) {
+			Map<String, String> config = matched.get().providerConfig(credentials);
+			if (!config.isEmpty()) {
+				conn.setRequestProperty("x-provider-config", toJson(config));
+			}
+		}
 	}
 	
 	private ProviderCredentials readCredentials() {
@@ -67,5 +71,26 @@ public class SaasRequestHeadersBuilder implements ConnectionHeadersApplier {
 		            GP_MESSAGING_PROVIDER_PASSWORD, ""),
 		        adminService.getGlobalProperty(GP_MESSAGING_PROVIDER_CLIENT_ID, ""), adminService.getGlobalProperty(
 		            GP_MESSAGING_PROVIDER_CLIENT_SECRET, ""));
+	}
+	
+	// ── Utilities ─────────────────────────────────────────────────────────────
+	
+	private static String toJson(Map<String, String> map) {
+		StringBuilder sb = new StringBuilder("{");
+		boolean first = true;
+		for (Map.Entry<String, String> entry : map.entrySet()) {
+			if (!first) {
+				sb.append(",");
+			}
+			sb.append("\"").append(escapeJson(entry.getKey())).append("\":");
+			sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+			first = false;
+		}
+		sb.append("}");
+		return sb.toString();
+	}
+	
+	private static String escapeJson(String value) {
+		return value.replace("\\", "\\\\").replace("\"", "\\\"");
 	}
 }

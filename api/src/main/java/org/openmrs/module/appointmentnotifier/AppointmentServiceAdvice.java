@@ -68,7 +68,13 @@ public class AppointmentServiceAdvice implements MethodInterceptor {
 			return result;
 		}
 		
-		String eventType = classifyEvent(appointment);
+		String status = apptStatus(appointment);
+		if (!isNotifiableStatus(status)) {
+			log.debug("AppointmentServiceAdvice: skipping appointment with status=" + status);
+			return result;
+		}
+		
+		String eventType = classifyEvent(status);
 		String uuid = safeUuid(appointment);
 		
 		try {
@@ -101,11 +107,12 @@ public class AppointmentServiceAdvice implements MethodInterceptor {
 		}
 	}
 	
-	private String classifyEvent(Object appt) {
-		String status = apptStatus(appt);
-		if ("Cancelled".equalsIgnoreCase(status))
-			return "CANCELLED";
-		return "SCHEDULED";
+	private static boolean isNotifiableStatus(String status) {
+		return "Scheduled".equalsIgnoreCase(status) || "Cancelled".equalsIgnoreCase(status);
+	}
+	
+	private static String classifyEvent(String status) {
+		return "Cancelled".equalsIgnoreCase(status) ? "CANCELLED" : "SCHEDULED";
 	}
 	
 	private Object resolveAppointment(Object result, Object[] args) {
