@@ -11,4 +11,29 @@
 	<packaging>jar</packaging>
 	<name>Appointment Notifier API</name>
 	<description>API project for Appointment Notifier</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.openmrs.api</groupId>
+			<artifactId>openmrs-api</artifactId>
+			<version>${openmrsPlatformVersion}</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<!--
+		  fhir2-api and HAPI FHIR are intentionally NOT listed here.
+		  fhir2 is declared aware_of_module (not required_module), so its classes
+		  may not be present at runtime.  FhirEncounterSerializer loads all fhir2
+		  and HAPI classes via Class.forName() / reflection at runtime only —
+		  no compile-time dependency is needed or safe.
+		-->
+
+		<!-- Jackson: bundled with OpenMRS core; used for FHIR JSON parsing -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+	</dependencies>
 </project>

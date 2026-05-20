@@ -13,8 +13,13 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.openmrs.api.context.Context;
+import org.openmrs.module.appointmentnotifier.AppointmentServiceAdvice;
 import org.openmrs.module.appointmentnotifier.api.AppointmentInfo;
 import org.openmrs.module.webservices.rest.web.RequestContext;
 import org.openmrs.module.webservices.rest.web.RestConstants;
@@ -35,12 +40,18 @@ import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Read-only REST resource that lists upcoming Scheduled appointments, enriched with patient contact
+ * information. Endpoint: GET /ws/rest/v1/appointmentnotifier Uses the same global properties as
+ * AppointmentServiceAdvice for base URL and credentials — no hardcoded values.
+ */
 @Resource(name = RestConstants.VERSION_1 + "/appointmentnotifier", supportedClass = AppointmentInfo.class, supportedOpenmrsVersions = { "2.0.* - 9.*" })
 public class AppointmentNotifierResource extends DelegatingCrudResource<AppointmentInfo> {
 	
-	private static final String OPENMRS_BASE_URL = "http://localhost:8080/openmrs";
+	private static final Log log = LogFactory.getLog(AppointmentNotifierResource.class);
 	
-	private static final String AUTH_HEADER = System.getenv("AUTH_HEADER");
+	// Bahmni appointments REST endpoint (confirmed valid)
+	private static final String APPOINTMENTS_PATH = "/ws/rest/v1/appointment/all";
 	
 	private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneOffset.UTC);
 	
@@ -48,20 +59,38 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 	
 	private final ObjectMapper objectMapper = new ObjectMapper();
 	
+	// ── Helpers to read global properties ────────────────────────────────────────
+	
+	private String openmrsBaseUrl() {
+		return Context.getAdministrationService().getGlobalProperty(AppointmentServiceAdvice.GP_OPENMRS_URL,
+		    "http://localhost:8080/openmrs");
+	}
+	
+	private String basicAuthHeader() {
+		String username = Context.getAdministrationService().getGlobalProperty(AppointmentServiceAdvice.GP_USERNAME);
+		String password = Context.getAdministrationService().getGlobalProperty(AppointmentServiceAdvice.GP_PASSWORD);
+		String credentials = username + ":" + password;
+		return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+	}
+	
+	// ── REST resource implementation ─────────────────────────────────────────────
+	
 	@Override
 	public DelegatingResourceDescription getRepresentationDescription(Representation rep) {
-		DelegatingResourceDescription description = new DelegatingResourceDescription();
-		description.addProperty("uuid");
-		description.addProperty("appointmentUuid");
-		description.addProperty("patientUuid");
-		description.addProperty("patientName");
-		description.addProperty("startDateTime");
-		description.addProperty("endDateTime");
-		description.addProperty("serviceName");
-		description.addProperty("status");
-		description.addProperty("phoneNumber");
-		description.addProperty("email");
-		return description;
+		DelegatingResourceDescription desc = new DelegatingResourceDescription();
+		desc.addProperty("uuid");
+		desc.addProperty("appointmentUuid");
+		desc.addProperty("patientUuid");
+		desc.addProperty("patientName");
+		desc.addProperty("artsName");
+		desc.addProperty("startDateTime");
+		desc.addProperty("endDateTime");
+		desc.addProperty("serviceName");
+		desc.addProperty("location");
+		desc.addProperty("status");
+		desc.addProperty("phoneNumber");
+		desc.addProperty("comments");
+		return desc;
 	}
 	
 	@Override
@@ -74,22 +103,27 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 		}
 	}
 	
+	// ── Data fetching ─────────────────────────────────────────────────────────────
+	
 	private List<AppointmentInfo> fetchUpcomingScheduled() throws Exception {
 		HttpHeaders headers = new HttpHeaders();
-		headers.set(HttpHeaders.AUTHORIZATION, AUTH_HEADER);
+		headers.set(HttpHeaders.AUTHORIZATION, basicAuthHeader());
 		headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
 		HttpEntity<String> request = new HttpEntity<String>(headers);
 		
-		ResponseEntity<String> response = restTemplate.exchange(OPENMRS_BASE_URL + "/ws/rest/v1/appointments",
-		    HttpMethod.GET, request, String.class);
+		String url = openmrsBaseUrl() + APPOINTMENTS_PATH;
+		ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
 		
 		JsonNode root = objectMapper.readTree(response.getBody());
 		
 		List<AppointmentInfo> results = new ArrayList<AppointmentInfo>();
 		long now = System.currentTimeMillis();
 		
-		if (root != null && root.isArray()) {
-			for (JsonNode appt : root) {
+		// The Bahmni /appointment/all endpoint returns a flat array
+		JsonNode array = root.isArray() ? root : root.path("results");
+		
+		if (array.isArray()) {
+			for (JsonNode appt : array) {
 				String status = appt.path("status").asText("");
 				if (!"Scheduled".equalsIgnoreCase(status)) {
 					continue;
@@ -107,9 +141,21 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 				info.setStatus(status);
 				info.setStartDateTime(formatEpochMillis(startDateTime));
 				info.setEndDateTime(formatEpochMillis(appt.path("endDateTime").asLong(0L)));
+				info.setComments(textOrNull(appt.path("comments")));
 				
 				JsonNode service = appt.path("service");
 				info.setServiceName(textOrNull(service.path("name")));
+				
+				JsonNode locationNode = appt.path("location");
+				info.setLocation(textOrNull(locationNode.path("name")));
+				
+				JsonNode providerNode = appt.path("provider");
+				if (!providerNode.isMissingNode() && !providerNode.isNull()) {
+					String artsName = textOrNull(providerNode.path("person").path("display"));
+					if (artsName == null)
+						artsName = textOrNull(providerNode.path("display"));
+					info.setArtsName(artsName);
+				}
 				
 				JsonNode patient = appt.path("patient");
 				String patientUuid = textOrNull(patient.path("uuid"));
@@ -117,59 +163,26 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 				info.setPatientName(textOrNull(patient.path("name")));
 				
 				if (patientUuid != null) {
-					enrichWithPatientContact(info, patientUuid);
-					if (info.getPhoneNumber() == null || info.getEmail() == null) {
-						enrichWithPersonAttributes(info, patientUuid);
-					}
+					enrichWithPersonAttributes(info, patientUuid);
 				}
 				
 				results.add(info);
 			}
 		}
+		
 		return results;
 	}
 	
-	private void enrichWithPatientContact(AppointmentInfo info, String patientUuid) {
-		try {
-			HttpHeaders headers = new HttpHeaders();
-			headers.set(HttpHeaders.AUTHORIZATION, AUTH_HEADER);
-			headers.set(HttpHeaders.ACCEPT, "application/fhir+json");
-			HttpEntity<String> request = new HttpEntity<String>(headers);
-			
-			ResponseEntity<String> response = restTemplate.exchange(
-			    OPENMRS_BASE_URL + "/ws/fhir2/R4/Patient/" + patientUuid, HttpMethod.GET, request, String.class);
-			
-			JsonNode fhir = objectMapper.readTree(response.getBody());
-			JsonNode telecoms = fhir.path("telecom");
-			if (telecoms.isArray()) {
-				for (JsonNode tel : telecoms) {
-					String system = tel.path("system").asText("");
-					String value = textOrNull(tel.path("value"));
-					if (value == null) {
-						continue;
-					}
-					if ("phone".equalsIgnoreCase(system) && info.getPhoneNumber() == null) {
-						info.setPhoneNumber(value);
-					} else if ("email".equalsIgnoreCase(system) && info.getEmail() == null) {
-						info.setEmail(value);
-					}
-				}
-			}
-		}
-		catch (Exception ignored) {
-			// FHIR lookup failed — leave phoneNumber/email null, fallback may fill them
-		}
-	}
-	
+	/** Looks up phone number via the standard OpenMRS REST person-attributes endpoint. */
 	private void enrichWithPersonAttributes(AppointmentInfo info, String patientUuid) {
 		try {
 			HttpHeaders headers = new HttpHeaders();
-			headers.set(HttpHeaders.AUTHORIZATION, AUTH_HEADER);
+			headers.set(HttpHeaders.AUTHORIZATION, basicAuthHeader());
 			headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
 			HttpEntity<String> request = new HttpEntity<String>(headers);
 			
-			ResponseEntity<String> response = restTemplate.exchange(OPENMRS_BASE_URL + "/ws/rest/v1/patient/" + patientUuid
-			        + "?v=full", HttpMethod.GET, request, String.class);
+			String url = openmrsBaseUrl() + "/ws/rest/v1/patient/" + patientUuid + "?v=full";
+			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
 			
 			JsonNode attributes = objectMapper.readTree(response.getBody()).path("person").path("attributes");
 			if (!attributes.isArray()) {
@@ -183,30 +196,30 @@ public class AppointmentNotifierResource extends DelegatingCrudResource<Appointm
 				}
 				if (info.getPhoneNumber() == null && "Telephone Number".equalsIgnoreCase(typeName)) {
 					info.setPhoneNumber(value);
-				} else if (info.getEmail() == null && "email".equalsIgnoreCase(typeName)) {
-					info.setEmail(value);
 				}
 			}
 		}
-		catch (Exception ignored) {
-			// Person attribute lookup failed — leave fields as-is
+		catch (Exception e) {
+			log.debug("Could not enrich patient attributes for " + patientUuid + ": " + e.getMessage());
 		}
 	}
 	
+	// ── Utilities ─────────────────────────────────────────────────────────────────
+	
 	private static String formatEpochMillis(long epochMillis) {
-		if (epochMillis <= 0) {
+		if (epochMillis <= 0)
 			return null;
-		}
 		return ISO_FORMATTER.format(Instant.ofEpochMilli(epochMillis));
 	}
 	
 	private static String textOrNull(JsonNode node) {
-		if (node == null || node.isNull() || node.isMissingNode()) {
+		if (node == null || node.isNull() || node.isMissingNode())
 			return null;
-		}
 		String value = node.asText(null);
 		return (value == null || value.isEmpty()) ? null : value;
 	}
+	
+	// ── Unsupported mutation operations ──────────────────────────────────────────
 	
 	@Override
 	public AppointmentInfo getByUniqueId(String uuid) {
