@@ -9,9 +9,13 @@
  */
 package org.openmrs.module.appointmentnotifier.api;
 
-public class AppointmentInfo {
+import org.openmrs.BaseOpenmrsObject;
+
+import java.io.Serializable;
+
+public class AppointmentInfo extends BaseOpenmrsObject implements Serializable {
 	
-	private String uuid;
+	private static final long serialVersionUID = 1L;
 	
 	private String appointmentUuid;
 	
@@ -19,24 +23,29 @@ public class AppointmentInfo {
 	
 	private String patientName;
 	
+	private String artsName;
+	
 	private String startDateTime;
 	
 	private String endDateTime;
 	
 	private String serviceName;
 	
+	private String location;
+	
 	private String status;
 	
 	private String phoneNumber;
 	
-	private String email;
+	private String comments;
 	
-	public String getUuid() {
-		return uuid;
+	@Override
+	public Integer getId() {
+		return null;
 	}
 	
-	public void setUuid(String uuid) {
-		this.uuid = uuid;
+	@Override
+	public void setId(Integer id) {
 	}
 	
 	public String getAppointmentUuid() {
@@ -63,6 +72,14 @@ public class AppointmentInfo {
 		this.patientName = patientName;
 	}
 	
+	public String getArtsName() {
+		return artsName;
+	}
+	
+	public void setArtsName(String artsName) {
+		this.artsName = artsName;
+	}
+	
 	public String getStartDateTime() {
 		return startDateTime;
 	}
@@ -87,6 +104,14 @@ public class AppointmentInfo {
 		this.serviceName = serviceName;
 	}
 	
+	public String getLocation() {
+		return location;
+	}
+	
+	public void setLocation(String location) {
+		this.location = location;
+	}
+	
 	public String getStatus() {
 		return status;
 	}
@@ -103,11 +128,11 @@ public class AppointmentInfo {
 		this.phoneNumber = phoneNumber;
 	}
 	
-	public String getEmail() {
-		return email;
+	public String getComments() {
+		return comments;
 	}
 	
-	public void setEmail(String email) {
-		this.email = email;
+	public void setComments(String comments) {
+		this.comments = comments;
 	}
 }

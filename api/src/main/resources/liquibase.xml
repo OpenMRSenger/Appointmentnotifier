@@ -3,19 +3,42 @@
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog/1.9
                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-1.9.xsd">
+
     <!--
-        See http://www.liquibase.org/manual/home#available_database_refactorings
-        for a list of supported elements and attributes
+        Outbox table for guaranteed delivery to the SaaS integration endpoint.
+        Status lifecycle: PENDING → SENT (happy path) | PENDING → FAILED (retry loop).
+        Entries with retry_count >= appointmentnotifier.maxRetries are left as FAILED and
+        skipped by the dispatcher; an operator can reset them to PENDING manually.
     -->
-    <changeSet author="yourname" id="20131010-1">
-        <comment>Create the department table</comment>
-        <createTable tableName="department_department">
-            <column autoIncrement="true" name="department_id" type="int">
-                <constraints primaryKey="true" nullable="false" />
+    <changeSet id="appointmentnotifier-outbox-001" author="Cleme">
+        <createTable tableName="saas_integration_queue">
+            <column name="id" type="INT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="name" type="varchar(255)" />
-            <column name="description" type="varchar(255)" />
-            <column name="uuid" type="char(38)" />
+            <!-- UUID of the OpenMRS Encounter that triggered this entry -->
+            <column name="encounter_uuid" type="VARCHAR(38)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Full FHIR R4 JSON payload (Bundle or Encounter). MEDIUMTEXT = up to 16 MB -->
+            <column name="fhir_payload" type="MEDIUMTEXT"/>
+            <!-- PENDING | SENT | FAILED -->
+            <column name="status" type="VARCHAR(10)" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="retry_count" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME"/>
+            <column name="updated_at" type="DATETIME"/>
         </createTable>
     </changeSet>
+
+    <changeSet id="appointmentnotifier-outbox-002" author="Cleme">
+        <!-- Fast status-based lookup used by SaasQueueTask every 5 minutes -->
+        <createIndex tableName="saas_integration_queue" indexName="idx_saas_queue_status">
+            <column name="status"/>
+            <column name="retry_count"/>
+        </createIndex>
+    </changeSet>
+
 </databaseChangeLog>

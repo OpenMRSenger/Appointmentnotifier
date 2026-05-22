@@ -10,6 +10,7 @@
 	<author>Cleme</author>
 	<description>
 			${project.parent.description}
+			Settings page: /openmrs/module/appointmentnotifier/settings.form
 	</description>
 
 	<activator>org.openmrs.module.appointmentnotifier.AppointmentNotifierActivator</activator>
@@ -24,23 +25,19 @@
 	</require_modules>
 
 	<aware_of_modules>
-		<aware_of_module>appointments</aware_of_module>
-		<aware_of_module>appointmentscheduling</aware_of_module>
 		<aware_of_module>fhir2</aware_of_module>
+		<aware_of_module>org.openmrs.module.appointments</aware_of_module>
+		<aware_of_module>appointmentscheduling</aware_of_module>
 		<aware_of_module>org.openmrs.module.legacyui</aware_of_module>
 	</aware_of_modules>
 	
 	<!-- Extensions -->
-	
-	
-	<!-- AOP
-	<advice>
-		<point>org.openmrs.api.FormService</point>
-		<class>@MODULE_PACKAGE@.advice.DuplicateFormAdvisor</class>
-	</advice>
-	 /AOP -->
-	
-	
+
+	<extension>
+		<point>org.openmrs.admin.list</point>
+		<class>org.openmrs.module.appointmentnotifier.extension.html.AdminList</class>
+	</extension>
+
 	<!-- Required Privileges 
 	<privilege>
 		<name>Form Entry</name>
@@ -49,17 +46,168 @@
 	 /Required Privileges -->
 
 
-	<!-- Required Global Properties 
+	<!-- ═══════════════════════════════════════════════════════════════════════
+	     GENERAL — SaaS connection and module behaviour
+	     ═══════════════════════════════════════════════════════════════════════ -->
+
 	<globalProperty>
-		<property>@MODULE_ID@.someProperty</property>
-		<defaultValue></defaultValue>
+		<property>appointmentnotifier.saasEndpoint</property>
+		<defaultValue>http://host.docker.internal:8888/api/v1/appointment</defaultValue>
 		<description>
-			A description of the global property goes here.  The description
-			should explain enough for administrators to understand the purpose
-			and possible values for the global property.
+			Webhook URL of the SaaS backend that receives appointment events (CREATED / UPDATED / CANCELLED / DELETED).
+			The module POSTs FHIR R4 JSON to this URL on every event.
 		</description>
 	</globalProperty>
-	/Required Global Properties -->
+	<globalProperty>
+		<property>appointmentnotifier.saasWebhookToken</property>
+		<defaultValue></defaultValue>
+		<description>
+			Bearer token used to authenticate against the SaaS webhook endpoint.
+			Sent as: Authorization: Bearer &lt;token&gt;
+			Leave blank if the endpoint does not require authentication.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.enabled</property>
+		<defaultValue>true</defaultValue>
+		<description>
+			Set to false to disable all outgoing webhook notifications without uninstalling the module.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.maxRetries</property>
+		<defaultValue>5</defaultValue>
+		<description>
+			Maximum number of dispatch attempts before an outbox entry is permanently abandoned.
+			To requeue a failed entry manually, reset its status to PENDING and retry_count to 0
+			in the saas_integration_queue table.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.taskIntervalSeconds</property>
+		<defaultValue>300</defaultValue>
+		<description>
+			How often (in seconds) the outbox dispatcher runs. Default is 300 (5 minutes).
+			Changes take effect after the module is restarted.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.hospitalName</property>
+		<defaultValue></defaultValue>
+		<description>
+			Human-readable facility name (e.g. "Mbarara Regional Referral Hospital").
+			Included in outgoing payloads as _facilityName so the SaaS can personalise SMS messages.
+			Falls back to the encounter location name when left blank.
+		</description>
+	</globalProperty>
+
+	<!-- ═══════════════════════════════════════════════════════════════════════
+	     OPENMRS CREDENTIALS — used for internal REST calls
+	     ═══════════════════════════════════════════════════════════════════════ -->
+
+	<globalProperty>
+		<property>appointmentnotifier.openmrsBaseUrl</property>
+		<defaultValue>http://localhost:8080/openmrs</defaultValue>
+		<description>
+			Base URL of this OpenMRS instance.
+			Used by the REST resource (/ws/rest/v1/appointmentnotifier) to fetch appointment lists.
+			In Docker deployments keep this as http://localhost:8080/openmrs.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.openmrsUsername</property>
+		<defaultValue>admin</defaultValue>
+		<description>
+			OpenMRS username for authenticating internal REST API calls.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.openmrsPassword</property>
+		<defaultValue>Admin123</defaultValue>
+		<description>
+			Password for appointmentnotifier.openmrsUsername.
+		</description>
+	</globalProperty>
+
+	<!-- ═══════════════════════════════════════════════════════════════════════
+	     MESSAGING PROVIDER — select one of the four providers below,
+	     then fill in only the credentials section that matches your choice.
+	     ═══════════════════════════════════════════════════════════════════════ -->
+
+	<globalProperty>
+		<property>appointmentnotifier.messagingProvider</property>
+		<defaultValue>SWIFTSEND</defaultValue>
+		<description>
+			Identifies which messaging provider the SaaS backend should use.
+			Must be exactly one of: SWIFTSEND, ASYNCFLOW, LEGACYLINK, SECUREPOST
+			Sent as the X-Messaging-Provider request header.
+		</description>
+	</globalProperty>
+
+	<!-- ───────────────────────────────────────────────────────────────────────
+	     SWIFTSEND  (REST, X-API-KEY)
+	     ASYNCFLOW  (REST async, X-API-KEY)
+	     Set messagingProvider to SWIFTSEND or ASYNCFLOW, then fill in the token.
+	     ─────────────────────────────────────────────────────────────────────── -->
+
+	<globalProperty>
+		<property>appointmentnotifier.messagingProviderToken</property>
+		<defaultValue></defaultValue>
+		<description>
+			[SWIFTSEND / ASYNCFLOW] API key for the provider.
+			Sent as: X-Messaging-Provider-Token: &lt;token&gt;
+			Leave blank when using LEGACYLINK or SECUREPOST.
+		</description>
+	</globalProperty>
+
+	<!-- ───────────────────────────────────────────────────────────────────────
+	     LEGACYLINK  (SOAP, BASIC auth)
+	     Set messagingProvider to LEGACYLINK, then fill in username and password.
+	     ─────────────────────────────────────────────────────────────────────── -->
+
+	<globalProperty>
+		<property>appointmentnotifier.messagingProviderUsername</property>
+		<defaultValue></defaultValue>
+		<description>
+			[LEGACYLINK] Username for BASIC authentication.
+			Sent as: X-Messaging-Provider-Username: &lt;username&gt;
+			Leave blank when using SWIFTSEND, ASYNCFLOW, or SECUREPOST.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.messagingProviderPassword</property>
+		<defaultValue></defaultValue>
+		<description>
+			[LEGACYLINK] Password for BASIC authentication.
+			Sent as: X-Messaging-Provider-Password: &lt;password&gt;
+			Leave blank when using SWIFTSEND, ASYNCFLOW, or SECUREPOST.
+		</description>
+	</globalProperty>
+
+	<!-- ───────────────────────────────────────────────────────────────────────
+	     SECUREPOST  (REST, JWT via client credentials)
+	     Set messagingProvider to SECUREPOST, then fill in client ID and secret.
+	     The SaaS backend exchanges these for a JWT before forwarding the message.
+	     ─────────────────────────────────────────────────────────────────────── -->
+
+	<globalProperty>
+		<property>appointmentnotifier.messagingProviderClientId</property>
+		<defaultValue></defaultValue>
+		<description>
+			[SECUREPOST] Client ID for JWT authentication.
+			Sent as: X-Messaging-Provider-Client-Id: &lt;clientId&gt;
+			Leave blank when using SWIFTSEND, ASYNCFLOW, or LEGACYLINK.
+		</description>
+	</globalProperty>
+	<globalProperty>
+		<property>appointmentnotifier.messagingProviderClientSecret</property>
+		<defaultValue></defaultValue>
+		<description>
+			[SECUREPOST] Client secret for JWT authentication.
+			Sent as: X-Messaging-Provider-Client-Secret: &lt;secret&gt;
+			Leave blank when using SWIFTSEND, ASYNCFLOW, or LEGACYLINK.
+		</description>
+	</globalProperty>
 	
 	<!--
 	<dwr>

@@ -1,0 +1,96 @@
+/**
+ * This Source Code Form is subject to the terms of the Mozilla Public License,
+ * v. 2.0. If a copy of the MPL was not distributed with this file, You can
+ * obtain one at http://mozilla.org/MPL/2.0/. OpenMRS is also distributed under
+ * the terms of the Healthcare Disclaimer located at http://openmrs.org/license.
+ *
+ * Copyright (C) OpenMRS Inc. OpenMRS is a registered trademark and the OpenMRS
+ * graphic logo is a trademark of OpenMRS Inc.
+ */
+package org.openmrs.module.appointmentnotifier.client;
+
+import java.net.HttpURLConnection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.openmrs.api.AdministrationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import static org.openmrs.module.appointmentnotifier.AppointmentNotifierConstants.*;
+
+/**
+ * Reads dynamic request headers from OpenMRS global properties and applies them to an outgoing
+ * connection. Provider-specific credential headers are delegated to the matching
+ * {@link ProviderHeaderStrategy} and emitted as a single {@code x-provider-config} JSON header,
+ * keeping this class closed to credential-format changes.
+ */
+@Component
+public class SaasRequestHeadersBuilder implements ConnectionHeadersApplier {
+	
+	private static final Log log = LogFactory.getLog(SaasRequestHeadersBuilder.class);
+	
+	private final AdministrationService adminService;
+	
+	private final List<ProviderHeaderStrategy> strategies;
+	
+	@Autowired
+	public SaasRequestHeadersBuilder(AdministrationService adminService, List<ProviderHeaderStrategy> strategies) {
+		this.adminService = adminService;
+		this.strategies = strategies;
+	}
+	
+	@Override
+	public void applyHeaders(HttpURLConnection conn) {
+		String hospitalName = adminService.getGlobalProperty(GP_HOSPITAL_NAME, "Unknown Hospital");
+		log.debug("Setting X-Hospital-Name header to: '" + hospitalName + "'");
+		conn.setRequestProperty("X-Hospital-Name", hospitalName);
+
+		String provider = adminService.getGlobalProperty(GP_MESSAGING_PROVIDER, DEFAULT_PROVIDER);
+		conn.setRequestProperty("X-Messaging-Provider", provider);
+
+		ProviderCredentials credentials = readCredentials();
+		Optional<ProviderHeaderStrategy> matched = strategies.stream()
+		        .filter(s -> s.supports(provider))
+		        .findFirst();
+
+		if (matched.isPresent()) {
+			Map<String, String> config = matched.get().providerConfig(credentials);
+			if (!config.isEmpty()) {
+				conn.setRequestProperty("x-provider-config", toJson(config));
+			}
+		}
+	}
+	
+	private ProviderCredentials readCredentials() {
+		return new ProviderCredentials(adminService.getGlobalProperty(GP_MESSAGING_PROVIDER_TOKEN, ""),
+		        adminService.getGlobalProperty(GP_MESSAGING_PROVIDER_USERNAME, ""), adminService.getGlobalProperty(
+		            GP_MESSAGING_PROVIDER_PASSWORD, ""),
+		        adminService.getGlobalProperty(GP_MESSAGING_PROVIDER_CLIENT_ID, ""), adminService.getGlobalProperty(
+		            GP_MESSAGING_PROVIDER_CLIENT_SECRET, ""));
+	}
+	
+	// ── Utilities ─────────────────────────────────────────────────────────────
+	
+	private static String toJson(Map<String, String> map) {
+		StringBuilder sb = new StringBuilder("{");
+		boolean first = true;
+		for (Map.Entry<String, String> entry : map.entrySet()) {
+			if (!first) {
+				sb.append(",");
+			}
+			sb.append("\"").append(escapeJson(entry.getKey())).append("\":");
+			sb.append("\"").append(escapeJson(entry.getValue())).append("\"");
+			first = false;
+		}
+		sb.append("}");
+		return sb.toString();
+	}
+	
+	private static String escapeJson(String value) {
+		return value.replace("\\", "\\\\").replace("\"", "\\\"");
+	}
+}
