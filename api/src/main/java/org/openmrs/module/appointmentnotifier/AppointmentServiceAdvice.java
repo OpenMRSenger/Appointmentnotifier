@@ -128,20 +128,112 @@ public class AppointmentServiceAdvice implements MethodInterceptor {
 	// ── Payload builder ────────────────────────────────────────────────────────
 	
 	private String buildJsonPayload(Object appt, Object patient, String event) {
-		return "{" + q("event") + ":" + q(event) + "," + q("appointmentUuid") + ":" + q(safeUuid(appt)) + ","
-		        + q("patientUuid") + ":" + q(patientUuid(patient)) + "," + q("patientName") + ":" + q(patientName(patient))
-		        + "," + q("artsName") + ":" + q(apptProviderName(appt)) + "," + q("status") + ":" + q(apptStatus(appt))
-		        + "," + q("phoneNumber") + ":" + q(patientPhone(patient)) + "," + q("service") + ":"
-		        + q(apptServiceName(appt)) + "," + q("location") + ":" + q(apptLocation(appt)) + "," + q("startDateTime")
-		        + ":" + q(extractDateIso(appt, "getStartDateTime")) + "," + q("endDateTime") + ":"
-		        + q(extractDateIso(appt, "getEndDateTime")) + "," + q("comments") + ":" + q(apptComments(appt)) + "}";
+		String apptUuid = safeUuid(appt);
+		String status = apptStatus(appt);
+		String fhirStatus = "proposed";
+		if (status != null) {
+			String lower = status.toLowerCase();
+			if (lower.equals("scheduled") || lower.equals("active")) {
+				fhirStatus = "booked";
+			} else if (lower.equals("cancelled")) {
+				fhirStatus = "cancelled";
+			} else {
+				fhirStatus = lower;
+			}
+		}
+		
+		String start = extractDateIso(appt, "getStartDateTime");
+		String end = extractDateIso(appt, "getEndDateTime");
+		
+		String ptUuid = patientUuid(patient);
+		String ptName = patientName(patient);
+		String ptPhone = patientPhone(patient);
+		
+		StringBuilder ptPart = new StringBuilder();
+		ptPart.append("{");
+		ptPart.append(q("actor")).append(":{");
+		ptPart.append(q("reference")).append(":").append(q("Patient/" + ptUuid));
+		if (ptName != null) {
+			ptPart.append(",").append(q("display")).append(":").append(q(ptName));
+		}
+		if (ptPhone != null && !ptPhone.isEmpty()) {
+			ptPart.append(",").append(q("telecom")).append(":[{");
+			ptPart.append(q("system")).append(":").append(q("phone")).append(",");
+			ptPart.append(q("value")).append(":").append(q(ptPhone));
+			ptPart.append("}]");
+		}
+		ptPart.append("},").append(q("status")).append(":").append(q("accepted"));
+		ptPart.append("}");
+		
+		String provUuid = apptProviderUuid(appt);
+		String provName = apptProviderName(appt);
+		
+		StringBuilder provPart = new StringBuilder();
+		boolean hasProvider = (provName != null && !provName.isEmpty()) || (provUuid != null && !provUuid.isEmpty());
+		if (hasProvider) {
+			provPart.append("{");
+			provPart.append(q("actor")).append(":{");
+			if (provUuid != null && !provUuid.isEmpty()) {
+				provPart.append(q("reference")).append(":").append(q("Practitioner/" + provUuid));
+			} else {
+				provPart.append(q("reference")).append(":").append(q("Practitioner/unknown"));
+			}
+			if (provName != null) {
+				provPart.append(",").append(q("display")).append(":").append(q(provName));
+			}
+			provPart.append("},").append(q("status")).append(":").append(q("accepted"));
+			provPart.append("}");
+		}
+		
+		StringBuilder payload = new StringBuilder();
+		payload.append("{");
+		payload.append(q("resourceType")).append(":").append(q("Appointment")).append(",");
+		payload.append(q("id")).append(":").append(q(apptUuid)).append(",");
+		payload.append(q("status")).append(":").append(q(fhirStatus)).append(",");
+		payload.append(q("start")).append(":").append(q(start)).append(",");
+		payload.append(q("end")).append(":").append(q(end)).append(",");
+		payload.append(q("participant")).append(":[");
+		payload.append(ptPart.toString());
+		if (hasProvider) {
+			payload.append(",").append(provPart.toString());
+		}
+		payload.append("]");
+		payload.append("}");
+		
+		return payload.toString();
 	}
 	
 	// ── Generic reflection helpers ─────────────────────────────────────────────
 	
 	private String safeUuid(Object obj) {
+		if (obj == null)
+			return null;
 		if (obj instanceof OpenmrsObject)
 			return ((OpenmrsObject) obj).getUuid();
+		try {
+			Object uuidVal = obj.getClass().getMethod("getUuid").invoke(obj);
+			return uuidVal != null ? uuidVal.toString() : null;
+		}
+		catch (Exception ignored) {}
+		return null;
+	}
+	
+	private String apptProviderUuid(Object appt) {
+		try {
+			Object providers = appt.getClass().getMethod("getProviders").invoke(appt);
+			if (!(providers instanceof Iterable))
+				return null;
+			for (Object ap : (Iterable<?>) providers) {
+				Object provider = ap.getClass().getMethod("getProvider").invoke(ap);
+				if (provider == null)
+					continue;
+				String uuid = safeUuid(provider);
+				if (uuid != null && !uuid.isEmpty()) {
+					return uuid;
+				}
+			}
+		}
+		catch (Exception ignored) {}
 		return null;
 	}
 	
