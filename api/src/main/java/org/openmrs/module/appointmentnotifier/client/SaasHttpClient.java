@@ -21,6 +21,9 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * Low-level HTTP client that POSTs outbox entries to the configured SaaS endpoint.
  *
@@ -85,10 +88,13 @@ public class SaasHttpClient implements SaasDispatcher {
 
 			if (httpStatus >= 200 && httpStatus < 300) {
 				log.info("Dispatched encounter " + encounterUuid + " → HTTP " + httpStatus);
+				String responseBody = readStream(conn.getInputStream());
+				parseAndLogOperationOutcome(responseBody);
 				return true;
 			}
 
 			String errorBody = readStream(conn.getErrorStream());
+			parseAndLogOperationOutcome(errorBody);
 			log.warn("Endpoint returned HTTP " + httpStatus + " for encounter "
 			        + encounterUuid + ". Body: " + abbreviate(errorBody, 300));
 			return false;
@@ -106,13 +112,49 @@ public class SaasHttpClient implements SaasDispatcher {
 
 	// ── Utilities ─────────────────────────────────────────────────────────────
 
-	private static String readStream(InputStream is) {
-		if (is == null) return "";
+	private void parseAndLogOperationOutcome(String responseBody) {
+		if (responseBody == null || responseBody.trim().isEmpty()) {
+			return;
+		}
 		try {
-			return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+			ObjectMapper mapper = new ObjectMapper();
+			JsonNode root = mapper.readTree(responseBody);
+			if (root != null && "OperationOutcome".equals(root.path("resourceType").asText())) {
+				JsonNode issues = root.path("issue");
+				if (issues.isArray()) {
+					for (JsonNode issue : issues) {
+						String severity = issue.path("severity").asText();
+						String code = issue.path("code").asText();
+						String diagnostics = issue.path("diagnostics").asText();
+						if ("error".equalsIgnoreCase(severity) || "fatal".equalsIgnoreCase(severity)) {
+							log.error("FHIR OperationOutcome validation error: severity=" + severity 
+							        + ", code=" + code + ", diagnostics=" + diagnostics);
+						} else {
+							log.info("FHIR OperationOutcome issue: severity=" + severity 
+							        + ", code=" + code + ", diagnostics=" + diagnostics);
+						}
+					}
+				}
+			}
 		}
 		catch (Exception e) {
-			log.debug("Failed to read error response stream", e);
+			log.debug("Failed to parse response body as OperationOutcome: " + e.getMessage());
+		}
+	}
+
+	private static String readStream(InputStream is) {
+		if (is == null) return "";
+		try (java.io.BufferedReader reader = new java.io.BufferedReader(
+				new java.io.InputStreamReader(is, StandardCharsets.UTF_8))) {
+			StringBuilder sb = new StringBuilder();
+			String line;
+			while ((line = reader.readLine()) != null) {
+				sb.append(line).append("\n");
+			}
+			return sb.toString();
+		}
+		catch (Exception e) {
+			log.debug("Failed to read stream", e);
 			return "";
 		}
 	}
